@@ -1,0 +1,15 @@
+import { build } from "esbuild";
+import { chromium } from "playwright";
+import { writeFile, mkdir } from "node:fs/promises";
+const out = "games/daily-crypt/.artifacts";
+await mkdir(out, { recursive: true });
+const result = await build({ entryPoints: ["games/daily-crypt/tests/video.ts"], bundle: true, format: "iife", write: false, logLevel: "error" });
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+const page = await browser.newPage();
+page.on("pageerror", e => console.error("pageerror", e.message));
+await page.setContent(`<html><body style="margin:0;background:#000"></body></html>`);
+await page.addScriptTag({ content: result.outputFiles[0].text });
+const data = await page.evaluate(() => window.done, undefined, { timeout: 180000 });
+await writeFile(`${out}/gameplay.webm`, Buffer.from(data, "base64"));
+console.log("wrote", `${out}/gameplay.webm`);
+await browser.close();

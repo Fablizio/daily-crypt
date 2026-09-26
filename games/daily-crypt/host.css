@@ -1,0 +1,13 @@
+/* Trusted runtime layout: keep the whole 3:2 frame visible on landscape phones and short windows. */
+:root {
+  --rf-game-max-width: min(960px, calc((100dvh - 4px) * 1.5));
+  --rf-game-aspect-ratio: 3 / 2;
+}
+html, html body { background: #070708; }
+html body { min-height: 100dvh; display: grid; place-items: center; }
+html body > #root { width: 100%; }
+/* Smaller (still tappable) runtime toolbar on phone-sized frames so it covers less of the dungeon. */
+@container (max-width: 640px) {
+  .rf-game-frame .rf-frame-toolbar { left: 8px; bottom: 8px; gap: 5px; }
+  .rf-game-frame .rf-frame-toolbar > *, .rf-game-frame .rf-frame-toolbar button { min-height: 28px; padding: 3px 7px; font-size: 10px; }
+}

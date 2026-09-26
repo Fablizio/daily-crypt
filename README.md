@@ -1,15 +1,16 @@
-# The Binding of RareFriend
+# Daily Crypt
 
-**A twin-stick dungeon crawler starring your Rare Friends Generations NFT. Every enemy and boss is
-another real Rare Friend.** By [Fablizio](https://github.com/Fablizio). Rare Friends Vibeathon entry built on FriendSDK v0.1.2.
+**A daily time-attack dungeon, identical for everyone. Every ranked attempt costs $RAREFRIENDS: 20% is burned and
+80% funds the prize pool for the day's three fastest verified runs.** By [Fablizio](https://github.com/Fablizio).
+Rare Friends Vibeathon entry (Token Activity) built on FriendSDK v0.1.2. All RF is simulated in this prototype.
 
-- **Play:** https://fablizio.github.io/the-binding-of-rarefriend/ (needs a wallet on Robinhood mainnet holding a hardwired Generations Friend)
-- **Game source, rules and controls:** [`games/binding-of-rarefriend/`](games/binding-of-rarefriend/README.md)
-- **Run locally:** `npm ci && npm run build && npm run dev:game -- games/binding-of-rarefriend`, then open http://localhost:4173
+- **Play:** https://fablizio.github.io/daily-crypt/ (needs a wallet on Robinhood mainnet holding a hardwired Generations Friend)
+- **Game source, rules and controls:** [`games/daily-crypt/`](games/daily-crypt/README.md) · **Economy design:** [`ECONOMY.md`](games/daily-crypt/ECONOMY.md)
+- **Run locally:** `npm ci && npm run build && npm run dev:game -- games/daily-crypt`, then open http://localhost:4173
 
 This repository is a copy of [FriendSDK v0.1.2](https://github.com/spokesz/friendsdk) (Apache-2.0,
-see `LICENSE` and `NOTICE.md`) with the game added under `games/binding-of-rarefriend/`. The SDK
-itself is unchanged. The original SDK documentation follows.
+see `LICENSE` and `NOTICE.md`) with the game added under `games/daily-crypt/`. The SDK itself is unchanged.
+The original SDK documentation follows.
 
 ---
 
