@@ -29,17 +29,41 @@ const rpc = () => (client ??= makeClient());
 
 type Call = { functionName: "familyOf" | "seedOf" | "frames"; args: readonly unknown[] };
 
-/** One multicall when available; otherwise individual (JSON-RPC batched) reads. Failed items become null. */
-async function readMany<T>(calls: readonly Call[]): Promise<(T | null)[]> {
-  const contracts = calls.map(call => ({ address: M.registry, abi: FAMILIES_REGISTRY_ABI, ...call })) as never[];
-  try {
-    const results = await rpc().multicall({ contracts, allowFailure: true, multicallAddress: MULTICALL3 });
-    return results.map(result => (result.status === "success" ? result.result as T : null));
-  } catch {
-    return Promise.all(calls.map(call => rpc().readContract({
-      address: M.registry, abi: FAMILIES_REGISTRY_ABI, ...call,
-    } as never).then(value => value as T, () => null)));
+const one = <T>(call: Call) => rpc().readContract({ address: M.registry, abi: FAMILIES_REGISTRY_ABI, ...call } as never)
+  .then(value => value as T);
+
+/** A single read, retried: artwork reads are cheap for the RPC but heavy to execute, so they can time out. */
+async function readOne<T>(call: Call, attempts = 3): Promise<T | null> {
+  for (let i = 0; i < attempts; i++) {
+    try { return await one<T>(call); } catch { await new Promise(resolve => setTimeout(resolve, 250 * (i + 1))); }
   }
+  return null;
+}
+
+/**
+ * Cheap pure reads (familyOf, seedOf) go through Multicall3 in chunks. Heavy reads (frames: 64 bitmaps
+ * rendered on chain) go one eth_call each, so no single call can exceed the node's gas cap. Any item that
+ * fails is retried on its own before it counts as missing.
+ */
+async function readMany<T>(calls: readonly Call[], chunk = 60): Promise<(T | null)[]> {
+  const out: (T | null)[] = new Array(calls.length).fill(null);
+  const heavy = calls.some(call => call.functionName === "frames");
+  if (!heavy) {
+    for (let start = 0; start < calls.length; start += chunk) {
+      const part = calls.slice(start, start + chunk);
+      const contracts = part.map(call => ({ address: M.registry, abi: FAMILIES_REGISTRY_ABI, ...call })) as never[];
+      try {
+        const results = await rpc().multicall({ contracts, allowFailure: true, multicallAddress: MULTICALL3 });
+        results.forEach((result, i) => { if (result.status === "success") out[start + i] = result.result as T; });
+      } catch { /* fall through to single reads */ }
+    }
+  }
+  // Six at a time keeps a phone's connection and the public RPC comfortable.
+  const missing = calls.map((_, i) => i).filter(i => out[i] === null);
+  for (let start = 0; start < missing.length; start += 6) {
+    await Promise.all(missing.slice(start, start + 6).map(async i => { out[i] = await readOne<T>(calls[i]); }));
+  }
+  return out;
 }
 
 async function assertChain() {
@@ -81,7 +105,8 @@ export async function loadRoster(rng: Rng, playerId: bigint | null, playerFamily
   while (plan.length < floorCount && others.length) plan.push(others.shift()!);
   while (plan.length < floorCount) plan.push(rng.pick(plan));
 
-  const chosen = plan.map(family => rng.shuffle([...byFamily.get(family)!]).slice(0, 6));
+  // Two reserves per group stand in for any Friend whose artwork can't be read.
+  const chosen = plan.map(family => rng.shuffle([...byFamily.get(family)!]).slice(0, 8));
   const flat = [...new Set(chosen.flat())];
   const seeds = await readMany<number>(flat.map(id => ({ functionName: "seedOf", args: [id] })));
   const familyOf = new Map(sample.map((id, index) => [id, families[index]]));
@@ -95,7 +120,7 @@ export async function loadRoster(rng: Rng, playerId: bigint | null, playerFamily
   });
 
   const floors = plan.map((family, floor) => {
-    const cast = chosen[floor].map(id => sprites.get(id)).filter((value): value is GenerationSprites => Boolean(value));
+    const cast = chosen[floor].map(id => sprites.get(id)).filter((value): value is GenerationSprites => Boolean(value)).slice(0, 6);
     if (cast.length < 2) throw new Error("Some Friends' artwork could not be read. Retry to summon a new cast.");
     const boss = cast[cast.length - 1];
     return { family, boss, regulars: cast.slice(0, -1) };
