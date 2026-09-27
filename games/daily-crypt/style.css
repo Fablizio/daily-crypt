@@ -53,10 +53,46 @@ html, body, #root { margin: 0; height: 100%; background: #070708; overflow: hidd
 .dc-spinner { width: 2.4em; height: 2.4em; border: 4px solid #333; border-top-color: #ccff00; border-radius: 50%; animation: dc-spin .8s linear infinite; }
 @keyframes dc-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .dc-spinner { animation-duration: 3s; } }
+/* Paid continue */
+.dc-revive h2 { color: #ff6b7d; }
+.dc-revive b { color: #ccff00; }
+.dc-timer { width: min(22em, 70%); height: .6em; background: #2a2a2a; border: 2px solid #555; }
+.dc-timer i { display: block; height: 100%; background: #ff7a3d; }
+/* Burn counter and projection */
+.dc-burnbox { display: flex; flex-direction: column; align-items: flex-start; padding: .5em .8em; background: rgba(40,12,0,.7); border: 2px solid #ff7a3d; text-align: left; }
+.dc-burnbox small { color: #ffb38a; }
+.dc-burnbox b { font-size: 2.1em; line-height: 1.1; color: #ff7a3d; font-variant-numeric: tabular-nums; }
+.dc-burnbox span { color: #bdbdbd; font-size: .85em; }
+.dc-proj { padding: .4em .6em; background: rgba(0,0,0,.5); border: 2px solid #333; text-align: left; }
+.dc-proj p { margin: .25em 0 0; } .dc-proj b { color: #ff7a3d; }
+.dc-proj-pick { display: flex; flex-wrap: wrap; align-items: center; gap: .3em; }
+.dc-proj-pick small { color: #9a9a9a; }
+.dc-game .dc-proj-pick button, .dc-game .dc-halos button { padding: .15em .5em; border-width: 1px; }
+.dc-game .dc-proj-pick button.on { background: #ff7a3d; border-color: #ff7a3d; color: #000; font-weight: bold; }
+/* Halo shop */
+.dc-halos { display: flex; flex-direction: column; gap: .3em; text-align: left; }
+.dc-halos > small { color: #9a9a9a; }
+.dc-halos > div { display: flex; flex-wrap: wrap; gap: .3em; }
+.dc-game .dc-halos button { display: grid; grid-template-columns: auto auto; column-gap: .35em; align-items: center; text-align: left; }
+.dc-halos button i { grid-row: span 2; width: .9em; height: .9em; border: 2px solid #000; outline: 1px solid #666; }
+.dc-halos button small { color: #9a9a9a; font-size: .8em; }
+.dc-game .dc-halos button.on { border-color: #ccff00; }
+.dc-halos button.on small { color: #ccff00; }
+/* Share */
+.dc-share { display: flex; flex-direction: column; align-items: center; gap: .3em; width: min(40em, 100%); }
+.dc-share textarea { width: 100%; box-sizing: border-box; resize: none; font: inherit; font-size: .85em; padding: .4em; background: #000; color: #f2f2f2;
+  border: 1px solid #555; user-select: text; -webkit-user-select: text; }
+.dc-share > div { display: flex; align-items: center; gap: .6em; }
 @media (max-height: 460px) {
+  .dc-proj .dc-small, .dc-halos > small { display: none; }
+  .dc-burnbox b { font-size: 1.6em; }
   .dc-logo { font-size: 1.8em; }
   .dc-screen { gap: .35em; padding: 1.5% 3% 12%; }
   .dc-cols { gap: 1em; }
   .dc-route small, .dc-split { display: none; }
-  .dc-board tr:nth-child(n+6) { display: none; }
+  .dc-board tr:nth-child(n+4) { display: none; }
+}
+@media (max-height: 300px) {
+  .dc-route, .dc-board, .dc-halos > small, .dc-proj-pick small { display: none; }
+  .dc-hero { padding: .3em .6em; }
 }

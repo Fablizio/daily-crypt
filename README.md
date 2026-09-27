@@ -1,11 +1,15 @@
 # Daily Crypt
 
+![Daily Crypt gameplay: a crowded late room, then the boss (test sprites, bot at the controls)](games/daily-crypt/media/demo.gif)
+
 **A daily time-attack dungeon, identical for everyone. Every ranked attempt costs $RAREFRIENDS: 20% is burned and
 80% funds the prize pool for the day's three fastest verified runs.** By [Fablizio](https://github.com/Fablizio).
 Rare Friends Vibeathon entry (Token Activity) built on FriendSDK v0.1.2. All RF is simulated in this prototype.
 
 - **Play:** https://fablizio.github.io/daily-crypt/ (needs a wallet on Robinhood mainnet holding a hardwired Generations Friend)
 - **Game source, rules and controls:** [`games/daily-crypt/`](games/daily-crypt/README.md) · **Economy design:** [`ECONOMY.md`](games/daily-crypt/ECONOMY.md)
+- **New:** a paid **continue** (5 RF, 100% burned, once per attempt, verified by replay), a cosmetic **halo shop**
+  (100% burned), a **burn counter with a daily/monthly projection**, **Copy result** and a Practice **ghost race**.
 - **Run locally:** `npm ci && npm run build && npm run dev:game -- games/daily-crypt`, then open http://localhost:4173
 
 This repository is a copy of [FriendSDK v0.1.2](https://github.com/spokesz/friendsdk) (Apache-2.0,

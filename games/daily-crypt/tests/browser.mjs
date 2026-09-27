@@ -90,6 +90,37 @@ try {
     await frameHandle.evaluate(() => new Promise(r => setTimeout(r, 300)));
     await page.locator(".rf-game-frame").screenshot({ path: join(outdir, `${view.name}-play.png`) });
     await page.waitForTimeout(200);
+    if (view.name === "desktop") {
+      // Stand still until the guard breaks, buy the continue, die again, then check share, halo shop and ghost race.
+      const shot = name => page.locator(".rf-game-frame").screenshot({ path: join(outdir, `${view.name}-${name}.png`) });
+      await game.getByRole("alertdialog").waitFor({ timeout: 150000 });
+      await shot("revive");
+      await game.getByRole("button", { name: /^Continue · 5 RF/ }).click();
+      await game.getByText("BOUND").waitFor({ timeout: 150000 });
+      const share = await game.getByRole("textbox", { name: /Result text/ }).inputValue();
+      assert.match(share, /^Daily Crypt \d{4}-\d{2}-\d{2} · Friend #7730 · fell in room \d+\/10 · 1 continue · ranked attempt · https:\/\/fablizio\.github\.io\/daily-crypt\/$/);
+      assert.ok(await game.getByText(/Used 1 continue/).isVisible(), "continue noted on the result");
+      await game.getByRole("button", { name: "Copy result" }).click();
+      await game.getByText(/Copied ✓|Copy blocked here/).waitFor();
+      console.log("share:", share, "·", await game.getByText(/Copied ✓|Copy blocked here/).innerText());
+      await shot("result");
+      await game.getByRole("button", { name: "Lobby" }).click();
+      // Balance: 100 - 10 entry - 5 continue.
+      assert.ok(await game.getByText(/Balance 85 RF/).isVisible(), "entry and continue debited");
+      await game.getByRole("button", { name: /Ember halo, buy for 20 RF/ }).click();
+      await game.getByRole("button", { name: "Buy · 20 RF" }).click();
+      assert.ok(await game.getByRole("button", { name: /Ember halo, equipped/ }).isVisible(), "halo equipped");
+      assert.ok(await game.getByText(/halos 20 RF/).isVisible(), "halo burn counted");
+      await game.getByRole("button", { name: "100", exact: true }).click();
+      assert.ok(await game.getByText(/365 RF burned\/day/).isVisible(), "projection at 100 attempts/day");
+      await shot("lobby-after");
+      await game.getByRole("button", { name: /^Race ghost/ }).click();
+      await page.waitForTimeout(2500);
+      await shot("ghost");
+      await page.keyboard.press("p");
+      await game.getByRole("button", { name: "Quit" }).click();
+      await game.getByRole("button", { name: /Practice \(free\)/ }).waitFor();
+    }
     assert.deepEqual([...new Set([...errors, ...fixture.errors])], [], `${view.name}: browser errors`);
     await context.close();
   }

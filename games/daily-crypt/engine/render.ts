@@ -202,7 +202,10 @@ function paintEnemy(ctx: CanvasRenderingContext2D, game: Game, e: Enemy, frame: 
   drawFriend(ctx, e.sprites, x, y + 2, { facing: e.facing, side: e.side, walking: e.moving, frame }, e.scale, ink, halo, alpha);
 }
 
-export function render(ctx: CanvasRenderingContext2D, game: Game, now: number) {
+/** A ghost is a second, independent Game replaying a recorded run. Only its Friend is drawn, never its enemies. */
+export type GhostView = { game: Game; label: string };
+
+export function render(ctx: CanvasRenderingContext2D, game: Game, now: number, ghost?: GhostView | null) {
   const theme = game.theme, room = game.room, state = game.state, p = game.player;
   const frame = game.reducedMotion ? 0 : Math.floor(now / 110) % 8;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -255,9 +258,15 @@ export function render(ctx: CanvasRenderingContext2D, game: Game, now: number) {
   layers.push({ y: p.y, draw: () => {
     ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, 20, 7, 0, 0, Math.PI * 2); ctx.fill();
     const lift = game.stats.flying ? 6 + (game.reducedMotion ? 0 : Math.sin(now / 250) * 2) : 0;
-    drawFriend(ctx, game.playerSprites, p.x, p.y + 2 - lift, { facing: p.facing, side: p.side, walking: p.moving, frame }, 4, "#000000", "#ffffff",
+    drawFriend(ctx, game.playerSprites, p.x, p.y + 2 - lift, { facing: p.facing, side: p.side, walking: p.moving, frame }, 4, "#000000", game.halo,
       flicker && !game.reducedMotion ? 0.35 : 1);
   } });
+  const g = ghost?.game;
+  if (g && g.roomIndex === game.roomIndex && !g.pendingRoom && g.status === "playing") {
+    const gp = g.player;
+    layers.push({ y: gp.y, draw: () => drawFriend(ctx, g.playerSprites, gp.x, gp.y + 2 - (g.stats.flying ? 6 : 0),
+      { facing: gp.facing, side: gp.side, walking: gp.moving, frame }, 4, "#16323f", "#bfe9ff", 0.38) });
+  }
   for (const familiar of game.familiars) layers.push({ y: familiar.y, draw: () =>
     drawFriend(ctx, game.playerSprites, familiar.x, familiar.y, { facing: p.facing, side: p.side, walking: p.moving, frame }, 2, "#000000", "#ccff00") });
   layers.sort((a, b) => a.y - b.y).forEach(layer => layer.draw());
@@ -281,6 +290,12 @@ export function render(ctx: CanvasRenderingContext2D, game: Game, now: number) {
   ctx.globalAlpha = 1;
   ctx.restore();
   paintHud(ctx, game);
+  if (ghost) {
+    ctx.textAlign = "left"; ctx.font = "bold 13px ui-monospace, monospace";
+    const w = ctx.measureText(ghost.label).width + 16;
+    ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(10, 64, w, 22);
+    ctx.fillStyle = "#bfe9ff"; ctx.fillText(ghost.label, 18, 80);
+  }
   if (game.fade > 0 && !game.reducedMotion) { ctx.fillStyle = `rgba(0,0,0,${game.fade})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
 }
 

@@ -63,12 +63,16 @@ export type GameEvent =
   | { type: "boss"; enemy: Enemy }
   | { type: "room"; index: number }
   | { type: "choice"; options: readonly RelicId[] }
-  | { type: "hit"; hits: number };
+  | { type: "hit"; hits: number }
+  | { type: "revive-offer" } | { type: "revived" };
 
 /** Fixed simulation step. The UI accumulates real time and steps the sim in whole ticks. */
 export const TICK = 1 / 60;
 export const HIT_PENALTY = 5;
 export const BASE_GUARD = 6;
+/** Paid continue: at most one per attempt, restoring this much guard. */
+export const MAX_REVIVES = 1;
+export const REVIVE_GUARD = 2;
 /** Room plan: which cast group each room draws from, how many Friends and how dangerous. */
 const ROOM_PLAN: readonly { group: number; mix?: number; count: number; difficulty: number; elite: number; elites?: number }[] = [
   { group: 0, count: 6, difficulty: 0, elite: 0 },
@@ -116,6 +120,13 @@ export class Game {
   roomIndex = 0;
   difficulty = 0;
   choice: readonly RelicId[] | null = null;
+  /**
+   * Set when the last guard breaks and a continue is still available. The sim stops (no ticks, clock paused)
+   * until revive() or declineRevive() is called. Both are recorded in the run, so replays take the same branch.
+   */
+  reviveOffer = false;
+  revivesLeft = MAX_REVIVES;
+  revives = 0;
   readonly choiceOptions: readonly RelicId[];
   private plans: Spawn[][] = [];
   /** Cosmetic randomness (particles) never touches the simulation's RNG. */
@@ -129,6 +140,8 @@ export class Game {
   shake = 0;
   bossIntro = 0;
   reducedMotion = false;
+  /** Outline colour of the player's Friend (cosmetic halo). Render only: never read by the simulation. */
+  halo = "#ffffff";
   /** Practice runs use the same crypt but are never ranked. Display only. */
   practice = false;
   touch = false;
@@ -415,7 +428,7 @@ export class Game {
 
   update(dt: number, input: Input) {
     if (this.status !== "playing") { this.updateEffects(dt); return; }
-    if (this.choice) return;
+    if (this.choice || this.reviveOffer) return;
     this.ticks++;
     this.time += dt;
     if (this.pendingRoom) {
@@ -744,7 +757,33 @@ export class Game {
     if (!this.reducedMotion) this.shake = 0.25;
     if (source) { const push = norm(p.x - source.x, p.y - source.y); this.move(p, push.x * 24, push.y * 24, p.r, this.stats.flying, false); }
     this.burst(p.x, p.y - 20, "#ffffff", 10);
-    if (p.hp <= 0) { this.status = "dead"; this.sfx("lose"); this.emit({ type: "dead" }); }
+    if (p.hp <= 0) {
+      if (this.revivesLeft > 0) { this.reviveOffer = true; this.emit({ type: "revive-offer" }); }
+      else this.die();
+    }
+  }
+
+  private die() { this.status = "dead"; this.sfx("lose"); this.emit({ type: "dead" }); }
+
+  /** Accept the pending continue: +REVIVE_GUARD guard, enemy shots cleared, a moment of invulnerability. */
+  revive() {
+    if (!this.reviveOffer || this.revivesLeft <= 0) return false;
+    this.reviveOffer = false; this.revivesLeft--; this.revives++;
+    this.guard += REVIVE_GUARD;
+    this.player.hp = this.guard - this.hits;
+    this.player.invuln = 1.5;
+    this.tears = this.tears.filter(tear => tear.friendly);
+    this.texts.push({ x: this.player.x, y: this.player.y - 70, text: `+${REVIVE_GUARD} guard`, life: 1.2, color: "#ccff00" });
+    this.emit({ type: "revived" }); this.sfx("relic");
+    return true;
+  }
+
+  /** Refuse the pending continue: the run ends here. */
+  declineRevive() {
+    if (!this.reviveOffer) return false;
+    this.reviveOffer = false;
+    this.die();
+    return true;
   }
 
   private damageEnemy(e: Enemy, amount: number) {
@@ -778,6 +817,7 @@ export class Game {
       state.enemies = [];
       this.tears = [];
       this.room.cleared = true;
+      this.reviveOffer = false;
       this.status = "won";
       this.sfx("win");
       this.emit({ type: "won" });

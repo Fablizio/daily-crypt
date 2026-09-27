@@ -1,0 +1,20 @@
+// Builds games/daily-crypt/media/demo.gif from deterministic frames (see demo.ts). Needs Playwright Chromium and ffmpeg.
+import { build } from "esbuild";
+import { chromium } from "playwright";
+import { execFileSync } from "node:child_process";
+import { mkdir, rm, writeFile, stat } from "node:fs/promises";
+const dir = "games/daily-crypt/.artifacts/demo", gif = "games/daily-crypt/media/demo.gif";
+const seed = Number(process.argv[2] ?? 4242);
+await rm(dir, { recursive: true, force: true }); await mkdir(dir, { recursive: true }); await mkdir("games/daily-crypt/media", { recursive: true });
+const result = await build({ entryPoints: ["games/daily-crypt/tests/demo.ts"], bundle: true, format: "iife", write: false, logLevel: "error" });
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+const page = await browser.newPage();
+page.on("pageerror", e => console.error("pageerror", e.message));
+await page.setContent(`<html><body style="margin:0;background:#000"></body></html>`);
+await page.addScriptTag({ content: result.outputFiles[0].text });
+const frames = await page.evaluate(s => window.capture(s), seed);
+await browser.close();
+for (const [i, data] of frames.entries()) await writeFile(`${dir}/f${String(i).padStart(4, "0")}.png`, Buffer.from(data.split(",")[1], "base64"));
+const filters = "scale=640:-1:flags=neighbor,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle";
+execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-framerate", "15", "-i", `${dir}/f%04d.png`, "-filter_complex", filters, "-loop", "0", gif]);
+console.log(`seed ${seed}: ${frames.length} frames (${(frames.length / 15).toFixed(1)} s at 15 fps) → ${gif} ${((await stat(gif)).size / 1e6).toFixed(2)} MB`);

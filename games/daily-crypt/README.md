@@ -1,5 +1,7 @@
 # Daily Crypt
 
+![Daily Crypt: a crowded late room, then the boss, with the clock and guard HUD (test sprites, bot at the controls)](media/demo.gif)
+
 Builder: Fablizio · [GitHub @Fablizio](https://github.com/Fablizio) · [X @FabrizioCottone](https://x.com/FabrizioCottone) · [Telegram @Fablizio](https://t.me/Fablizio) · FriendSDK **v0.1.2** · Rare Friends Vibeathon (**Token Activity**)
 
 A daily time-attack dungeon, the same for everyone. Every ranked attempt costs $RAREFRIENDS: 20% is burned and
@@ -28,6 +30,7 @@ check. No transaction or signature is requested. Static build: `npx friendsdk bu
 | Move | WASD | Left thumb, anywhere on the left half |
 | Shoot | Arrow keys, or hold the left mouse button | Right thumb, anywhere on the right half |
 | Power-up choice | 1 / 2 / 3, or click | Tap a card |
+| Continue (when offered) | C or Enter to pay, N to end the run | Tap the buttons |
 | Pause / mute | P or Esc / M, or the on-screen buttons | On-screen buttons |
 
 Settings and pause include **Mute** and **Reduce motion**. The run and its clock pause on blur, hidden tabs, the
@@ -44,6 +47,8 @@ pause menu and whenever the runtime opens its own menus.
 - **Room 10 is the boss**: a real Friend at 6× size with four attacks, faster below half health. The clock stops
   when it falls.
 - **No healing.** Every hit adds **+5 s**. You have **6 guard** (7 for Colossus Friends). The last hit ends the run.
+- **Continue, once per attempt.** When your last guard breaks, the clock stops and you get 6 seconds to pay
+  **5 RF (100% burned)** for **+2 guard**. The fatal hit still counts (+5 s). Free in Practice.
 - **Score = clear time + 5 s × hits.** Lowest wins.
 - Your Friend's family perk applies (piercing, twin shots, familiar, split shots, wobble, flight, heavy shots,
   bursts, phase skin). The leaderboard shows the family.
@@ -56,23 +61,52 @@ pause menu and whenever the runtime opens its own menus.
 | Burned | **20%** of every entry (2 RF) |
 | Day pool | **80%** of every entry (8 RF) |
 | Payout at 00:00 UTC | **50% / 30% / 20%** to the three fastest *verified* times |
-| Practice | Free, same crypt, never ranked |
+| Continue (revive) | **5 RF**, once per ranked attempt, **100% burned**, +2 guard |
+| Halos (cosmetic) | Ember 20 · Frost 20 · Venom 40 · Gold 80 RF, one-time, **100% burned**, session-only |
+| Practice | Free, same crypt, never ranked; its continue is free too |
 | Starting balance | 100 RF, simulated, per session |
 
 A dead or forfeited ranked attempt keeps its entry in the pool. Rival entries and times are generated from the
-day's seed and labelled **SIMULATED**. Everything resets on reload (the sandbox has no storage). This prototype
+day's seed and labelled **SIMULATED**, and so are their continues (15–30% of the day's entries). Everything resets
+on reload (the sandbox has no storage). This prototype
 does not use the SDK chance-game actions: entries are a fixed fee, not a chance purchase. The required
 `game.json` carries **unused schema-only terms** (1 RF, a single 10,000 bps reward of 1 RF, both
 `1000000000000000000` base units).
+
+## Lobby, shop and sharing
+
+- **Burn counter.** The lobby leads with **RF burned today** (simulated), split into entries, continues and halos,
+  next to the pool, entries and continues sold.
+- **Burn projection.** Pick 100, 1,000 or 10,000 ranked attempts a day to see the burn per day and per 30-day
+  month. It adds 2 RF per entry, a 5 RF continue on 25% of attempts and one halo per 100 attempts at the ~40 RF
+  average. Those rates are stated assumptions, not data. At 1,000 attempts/day: 3,650 RF/day, 109,500 RF/month.
+- **Halo shop.** Four outline colours for your Friend, bought once with simulated RF, 100% burned, equipped for the
+  session. Purely visual: `Game.halo` is read only by the renderer, never by the simulation, so it can't affect
+  a run or its replay (checked in `run-sim.mjs`).
+- **Copy result.** The result screen shows a ready-to-paste line in a selectable text box, e.g.
+  `Daily Crypt 2026-09-27 · Friend #25090 · 3:12.40 (2 hits) · rank #4 · https://fablizio.github.io/daily-crypt/`.
+  **Copy result** tries the Clipboard API, then `execCommand("copy")`, and says **Copied ✓** only if one worked.
+  If the sandbox blocks both, you select the text yourself.
+- **Ghost race (Practice).** **Race ghost** replays your best run of the session (the fastest clear, or else the
+  run that got furthest) as a translucent copy of your Friend. It's a second `Game` stepped in lockstep from the
+  recorded inputs, power-up and continue. Its enemies are simulated but not drawn. The HUD shows the ghost's room
+  and, at each door, how far ahead or behind it is on the clock. The live run never reads the ghost.
 
 ## Replay verification (anti-cheat)
 
 The simulation runs at a **fixed 60 Hz step**. All gameplay randomness comes from the day's seed, and cosmetic
 randomness uses a separate generator. Each tick's input is recorded as 4 signed bytes (move and aim), plus the
-index of the power-up chosen. A finished ranked run is **re-simulated from scratch** from those inputs before it
-counts. If the recomputed time, hits and outcome don't match, the run is rejected. **Watch replay** plays the
-recorded inputs back through the same engine. In production this check runs on a server before payouts (see
-ECONOMY.md).
+index of the power-up chosen and **the tick of each accepted continue** (`RunRecord.revives`).
+
+When the last guard breaks, the engine raises `reviveOffer` and stops ticking until `revive()` or
+`declineRevive()` is called. The replayer (`stepRecorded` in `engine/replay.ts`, shared by verification, Watch
+replay and the ghost) accepts the offer only if the next recorded continue has that exact tick, and declines it
+otherwise. `verify()` rejects a run if it holds more than one continue, if a recorded continue was never
+consumed at a real offer, or if the recomputed status, ticks, hits or continue count differ from the claim.
+
+A finished ranked run is **re-simulated from scratch** from those inputs before it counts. **Watch replay** plays
+the recorded inputs back through the same engine. In production this check runs on a server before payouts, and
+the server also matches each recorded continue to a paid one (see ECONOMY.md).
 
 ## How the Friends are chosen
 
@@ -85,11 +119,22 @@ collection is never scanned and no owners are looked up.
 
 - `npx friendsdk check games/daily-crypt` and `npx tsc -p games/daily-crypt/tsconfig.json`.
 - `node games/daily-crypt/tests/run-sim.mjs`: a bot plays 54 full runs across all nine player families.
-  - Every honest run is recorded and **re-verified by replay** (27/27 match).
+  - Two in three honest runs buy the continue when their guard breaks; the rest decline it (17 of 27 revived).
+  - Every honest run is recorded and **re-verified by replay: 27/27 match**, including the ones with a continue.
+  - **Continue tampering: 68/68 rejected.** For each revived run it tries four edits: hide the continue, move it
+    one tick, add a second one, and lie about the count.
+  - **Ghost lockstep: 9/9.** A ghost stepped next to a live run matches its record tick for tick. The live run
+    is identical with or without the ghost (9/9), and with or without a halo (9/9).
   - Invulnerable, the bot clears the crypt in 22 of 27 runs. The misses are its aim getting stuck behind rocks.
   - With normal guard it dies around room 4. It doesn't dodge, and the crypt is meant to be hard.
 - `node games/daily-crypt/tests/browser.mjs`: the real SDK runtime in headless Chromium with SDK mock
-  fixtures. It covers desktop and phone layouts, the ranked-entry flow and play, with no browser errors.
+  fixtures, on desktop and phone layouts, with no browser errors. The desktop pass goes through a full flow:
+  - a ranked entry, standing still until the guard breaks, then **Continue · 5 RF** and dying again;
+  - it checks the share line and the balance (100 → 85 RF), then **Copy result** (Copied ✓ via the
+    `execCommand` fallback in headless Chromium);
+  - it buys and equips the Ember halo, sets the projection to 100/day (365 RF/day), then starts **Race ghost**.
+- `node games/daily-crypt/tests/run-demo.mjs`: renders `media/demo.gif` from fixed-step frames (test sprites, bot,
+  seed 4242), 12 s at 15 fps, 640 px wide, about 1.1 MB.
 - Known issue: the stock `npx friendsdk test` fixture only answers artwork reads for sample Friend #7730, so
   it rejects the roster reads by design.
 
@@ -101,6 +146,12 @@ collection is never scanned and no owners are looked up.
 - The cast depends on the public Robinhood RPC. If a read fails, the game shows Retry.
 - Power-ups that don't fit a family perk (e.g. flight for Hoverers) are skipped, so that family sees the next
   ones in the day's order.
+- Ghost: it only covers this session's runs (no storage) and draws only the ghost's Friend. It stops when your run
+  ends. Ahead/behind is measured at room entries (clock including hit penalties), not continuously. Racing the
+  day's leader would need the leader's input log from a server.
+- The continue's 6-second window runs on wall-clock time, not sim time. It pauses with the pause menu, blur and
+  runtime menus. Letting it expire counts as **End run**.
+- Halos, continues and the burn counter are session-only and simulated, like the rest of the economy.
 
 ## Credits
 

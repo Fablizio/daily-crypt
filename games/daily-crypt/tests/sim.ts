@@ -1,8 +1,9 @@
-// Headless engine check: a bot plays full runs (no DOM, no network). Run: node games/binding-of-rarefriend/tests/run-sim.mjs
+// Headless engine check: a bot plays full runs (no DOM, no network). Run: node games/daily-crypt/tests/run-sim.mjs
 import { decodeGenerationSprites, type GenerationSprites } from "../../../src/generation-sprites";
 import { sampleFriendSprites } from "../../../examples/fishing/sample-sprites";
 import { Game, CX, CY, DOOR_POS, IN_X, IN_Y, TILE, TICK, type Input } from "../engine/game";
-import { Recorder, quantize, result, toInput, verify, type RunRecord } from "../engine/replay";
+import { Recorder, quantize, result, stepRecorded, toInput, verify, type RunRecord } from "../engine/replay";
+export { verify };
 import { COLS, ROWS, STEP, OPPOSITE, key, type Dir, type Room } from "../engine/dungeon";
 import type { Roster } from "../engine/roster";
 import type { FamilyId } from "../engine/themes";
@@ -88,9 +89,20 @@ export function botInput(game: Game, input: Input) {
     return enemies;
 }
 
-export function run(seed: number, family: FamilyId, families: FamilyId[], god: boolean, onTick?: (game: Game, t: number) => boolean | void) {
+export type RunOptions = {
+  /** Accept the paid continue when it is offered (otherwise decline it, ending the run). */
+  revive?: boolean;
+  /** Race this recorded run as a ghost: a second Game stepped in lockstep, exactly as the UI does. */
+  ghost?: RunRecord;
+  /** Cosmetic halo colour; must not change anything in the simulation. */
+  halo?: string;
+};
+
+export function run(seed: number, family: FamilyId, families: FamilyId[], god: boolean, onTick?: (game: Game, t: number) => boolean | void, options: RunOptions = {}) {
   const roster = fakeRoster(families), sprites = fakeSprites(7730, family);
   const game = new Game(sprites, family, roster, seed);
+  if (options.halo) game.halo = options.halo;
+  const ghost = options.ghost ? { game: new Game(sprites, options.ghost.family, roster, options.ghost.seed), cursor: { frame: 0, choice: 0, revive: 0 } } : null;
   const input: Input = { keys: new Set(), move: null, aim: null };
   const recorder = new Recorder();
   const dt = TICK;
@@ -98,6 +110,10 @@ export function run(seed: number, family: FamilyId, families: FamilyId[], god: b
   const log: string[] = [];
   while (game.status === "playing" && t < 60 * 15) {
     if (game.choice) { recorder.choices.push(0); game.choose(0); continue; }
+    if (game.reviveOffer) {
+      if (options.revive) { recorder.revives.push(game.ticks); game.revive(); } else game.declineRevive();
+      continue;
+    }
     t += dt; roomTime += dt;
     if (game.room !== lastRoom) { lastRoom = game.room; roomTime = 0; }
     if (god) game.player.invuln = 1;
@@ -106,14 +122,18 @@ export function run(seed: number, family: FamilyId, families: FamilyId[], god: b
     const frame = quantize(input.move, input.aim);
     recorder.push(frame);
     game.update(dt, toInput(frame));
+    if (ghost) while (ghost.game.status === "playing" && ghost.game.ticks < game.ticks) { if (!stepRecorded(ghost.game, options.ghost!, ghost.cursor)) break; ghost.game.drainEvents(); }
     if (onTick && onTick(game, t)) break;
     for (const ev of game.drainEvents()) if (ev.type === "room" || ev.type === "boss" || ev.type === "choice") log.push(`${t.toFixed(0)}s ${ev.type}`);
     if (Math.hypot(p.x - last.x, p.y - last.y) < 0.01 && !enemies.length) stuck += dt; else stuck = 0;
     last = { x: p.x, y: p.y };
     if (stuck > 8 || roomTime > 120) { log.push(`STUCK in room ${game.roomIndex + 1} at ${p.x.toFixed(0)},${p.y.toFixed(0)} enemies=${game.state.enemies.map(e => `${e.kind}:${e.state}:hp${e.hp.toFixed(1)}@${e.x.toFixed(0)},${e.y.toFixed(0)}`).join(' ')}`); break; }
   }
-  const record: RunRecord = { seed, friendId: 7730n, family, frames: recorder.frames(), choices: recorder.choices, claimed: result(game) };
+  // A run still waiting on the offer when the bot gives up (stuck/timeout) is closed the same way the UI would.
+  if (game.reviveOffer) game.declineRevive();
+  const record: RunRecord = { seed, friendId: 7730n, family, frames: recorder.frames(), choices: recorder.choices, revives: recorder.revives, claimed: result(game) };
   // god mode tampers with the sim, so only honest runs are expected to verify.
   const verified = god ? null : verify(record, sprites, roster).ok;
-  return { status: game.status, room: game.roomIndex + 1, time: game.finalTime, ticks: game.ticks, hits: game.hits, kills: game.kills, relics: game.relics, verified, log };
+  return { status: game.status, room: game.roomIndex + 1, time: game.finalTime, ticks: game.ticks, hits: game.hits, kills: game.kills, relics: game.relics,
+    revives: game.revives, verified, log, record, sprites, roster, ghost: ghost && { status: ghost.game.status, ticks: ghost.game.ticks, hits: ghost.game.hits, revives: ghost.game.revives } };
 }
