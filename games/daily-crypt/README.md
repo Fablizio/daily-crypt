@@ -2,7 +2,7 @@
 
 ![Daily Crypt: a crowded late room, then the boss, with the clock and guard HUD (test sprites, bot at the controls)](media/demo.gif)
 
-Builder: Fablizio · [GitHub @Fablizio](https://github.com/Fablizio) · [X @FabrizioCottone](https://x.com/FabrizioCottone) · [Telegram @Fablizio](https://t.me/Fablizio) · FriendSDK **v0.1.2** · Rare Friends Vibeathon (**Token Activity**)
+Builder: Fablizio · [GitHub @Fablizio](https://github.com/Fablizio) · [X @FabrizioCottone](https://x.com/FabrizioCottone) · [Telegram @Fablizio](https://t.me/Fablizio) · FriendSDK **v0.1.4** · Rare Friends Vibeathon (**Token Activity**)
 
 A daily time-attack dungeon, the same for everyone. Every ranked attempt costs $RAREFRIENDS: 20% is burned and
 80% goes into the day's prize pool, which pays the three fastest verified runs. Your verified Generations Friend

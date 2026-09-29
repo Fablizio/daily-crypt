@@ -91,7 +91,7 @@ math. It would also pin the engine version per day.
 
 ## Going live (later phase, with the Rare Friends team)
 
-Needs custom integration beyond FriendSDK v0.1.2, which has no leaderboard, persistence or pool APIs:
+Needs custom integration beyond FriendSDK v0.1.4, which has no leaderboard, persistence or pool APIs:
 
 - **DailyCryptPool contract**, referencing RF and Generations through interfaces:
   - `enter(day, friendId)` pulls 10 RF from the Friend's canonical wallet and burns 2 RF;
