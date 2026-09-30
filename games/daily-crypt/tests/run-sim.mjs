@@ -20,7 +20,7 @@ for (let family = 0; family < 9; family++) for (const god of [true, false]) {
   }
 }
 const summarize = list => ({ runs: list.length, won: list.filter(r => r.status === "won").length, dead: list.filter(r => r.status === "dead").length,
-  avgRoom: (list.reduce((a, r) => a + r.room, 0) / list.length).toFixed(2), avgHits: (list.reduce((a, r) => a + r.hits, 0) / list.length).toFixed(1),
+  avgRoom: (list.reduce((a, r) => a + r.room, 0) / list.length).toFixed(2), deepestRoom: Math.max(...list.map(r => r.room)), avgHits: (list.reduce((a, r) => a + r.hits, 0) / list.length).toFixed(1),
   revived: list.filter(r => r.revives > 0).length,
   wonTimes: list.filter(r => r.status === "won").map(r => r.time.toFixed(0)).join(","), verified: list.filter(r => r.verified).length + "/" + list.filter(r => r.verified !== null).length });
 console.log("invulnerable bot:", JSON.stringify(summarize(results.god)));

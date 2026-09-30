@@ -26,6 +26,14 @@ export type Tear = {
 };
 export type EnemyKind = "rattler" | "mimic" | "kin" | "cell" | "glitch" | "drifter" | "brute" | "glint" | "shade" | "boss";
 const KIND_BY_FAMILY: readonly EnemyKind[] = ["rattler", "mimic", "kin", "cell", "glitch", "drifter", "brute", "glint", "shade"];
+/**
+ * Difficulty raised after playtesting (the first tuning was too easy). Multipliers on the original constants:
+ * regular enemies +20% HP, elites and the boss +25% HP, +10% move speed, fire cooldowns x0.85 and enemy
+ * projectiles +10% speed; the boss enrages at 60% HP instead of 50%. Guard, hit penalty, continue and power-ups
+ * are unchanged.
+ */
+const ENEMY_HP = 1.2, ELITE_HP = 1.25, BOSS_HP = 1.25, ENEMY_SPEED = 1.1, ENEMY_COOLDOWN = 0.85, ENEMY_SHOT_SPEED = 1.1;
+const BOSS_ENRAGE_AT = 0.6;
 const BASE_HP: Readonly<Record<EnemyKind, number>> = { rattler: 10, mimic: 8, kin: 5, cell: 12, glitch: 8, drifter: 7, brute: 20, glint: 10, shade: 8, boss: 110 };
 
 export type Enemy = {
@@ -292,11 +300,11 @@ export class Game {
   makeEnemy(sprites: GenerationSprites, x: number, y: number, boss: boolean, minion = false, elite = false): Enemy {
     const family = sprites.familyId as FamilyId;
     const kind: EnemyKind = boss ? "boss" : KIND_BY_FAMILY[family];
-    const hpMul = (1 + this.difficulty * 0.32) * (elite ? 1.6 : 1);
-    const hp = boss ? 320 : BASE_HP[kind] * hpMul;
+    const hpMul = (1 + this.difficulty * 0.32) * (elite ? 1.6 * ELITE_HP : ENEMY_HP);
+    const hp = boss ? 320 * BOSS_HP : BASE_HP[kind] * hpMul;
     const scale = boss ? 6 : kind === "brute" ? 4 : kind === "kin" ? 2 : 3;
     const r = boss ? 34 : kind === "brute" ? 20 : kind === "kin" ? 11 : 15;
-    const speedMul = 1 + this.difficulty * 0.07;
+    const speedMul = (1 + this.difficulty * 0.07) * ENEMY_SPEED;
     const speed = ({ rattler: 82, mimic: 70, kin: 62, cell: 42, glitch: 128, drifter: 72, brute: 42, glint: 18, shade: 72, boss: 64 } as const)[kind] * speedMul;
     return {
       uid: this.uid++, kind, family, sprites, x, y, vx: 0, vy: 0, r, hp, maxHp: hp, speed, scale,
@@ -527,6 +535,7 @@ export class Game {
   }
 
   private enemyTear(x: number, y: number, dir: Vec, speed: number, r = 7) {
+    speed *= ENEMY_SHOT_SPEED;
     this.tears.push({ x, y, vx: dir.x * speed, vy: dir.y * speed, life: 2.6, age: 0, r, dmg: 1, friendly: false,
       pierce: false, split: false, homing: false, wobble: -1, hit: new Set() });
     this.sfx("enemyShot");
@@ -562,7 +571,7 @@ export class Game {
           vx = (toPlayer.x * want + side.x * 0.6) * e.speed; vy = (toPlayer.y * want + side.y * 0.6) * e.speed;
           if (e.t <= 0) {
             this.enemyTear(e.x, e.y - 20, norm(p.x - e.x, p.y - 24 - (e.y - 20)), 210);
-            e.shots++; e.t = 1.7;
+            e.shots++; e.t = 1.7 * ENEMY_COOLDOWN;
             if (e.shots % 2 === 0) e.state = "blinkOut";
           }
           break;
@@ -587,7 +596,7 @@ export class Game {
           if (e.t <= 0) {
             const a = Math.PI / 4 + this.rng.int(4) * Math.PI / 2;
             this.enemyTear(e.x, e.y - 18, { x: Math.cos(a), y: Math.sin(a) }, 190);
-            e.t = this.rng.range(1.8, 2.6);
+            e.t = this.rng.range(1.8, 2.6) * ENEMY_COOLDOWN;
           }
           break;
         }
@@ -609,7 +618,7 @@ export class Game {
         case "glint": {
           if (e.t2 <= 0) { const a = this.rng.range(0, Math.PI * 2); e.dir = { x: Math.cos(a), y: Math.sin(a) }; e.t2 = 1.5; }
           e.t2 -= dt; vx = e.dir.x * e.speed; vy = e.dir.y * e.speed;
-          if (e.t <= 0) { this.ring(e, this.difficulty < 1 ? 6 : 8, 150, this.rng.range(0, 1)); e.t = 2.6; }
+          if (e.t <= 0) { this.ring(e, this.difficulty < 1 ? 6 : 8, 150, this.rng.range(0, 1)); e.t = 2.6 * ENEMY_COOLDOWN; }
           break;
         }
         case "shade": {
@@ -648,7 +657,7 @@ export class Game {
   private updateBoss(e: Enemy, dt: number, toPlayer: Vec, d: number) {
     // The Daily Crypt keeper knows one more trick than its family's usual three.
     const attacks = [...BOSS_ATTACKS[e.family], EXTRA_ATTACK[e.family]];
-    const enraged = e.hp < e.maxHp * 0.5;
+    const enraged = e.hp < e.maxHp * BOSS_ENRAGE_AT;
     const setFacing = (x: number, y: number) => {
       const f = Math.abs(x) >= Math.abs(y) ? (x < 0 ? "left" : "right") : (y < 0 ? "up" : "down");
       e.facing = f; if (f === "left" || f === "right") e.side = f;
@@ -712,11 +721,11 @@ export class Game {
         }
         return;
       }
-      case "rest": if (e.t <= 0) { e.state = "idle"; e.t = enraged ? 0.5 : 0.9; } return;
+      case "rest": if (e.t <= 0) { e.state = "idle"; e.t = (enraged ? 0.5 : 0.9) * ENEMY_COOLDOWN; } return;
     }
   }
 
-  private bossRest(e: Enemy, enraged: boolean) { e.state = "rest"; e.t = enraged ? 0.45 : 0.8; e.moving = false; }
+  private bossRest(e: Enemy, enraged: boolean) { e.state = "rest"; e.t = (enraged ? 0.45 : 0.8) * ENEMY_COOLDOWN; e.moving = false; }
 
   private startBossAttack(e: Enemy, attack: BossAttack, enraged: boolean, toPlayer: Vec) {
     switch (attack) {

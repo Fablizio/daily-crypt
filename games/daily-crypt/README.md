@@ -44,12 +44,16 @@ pause menu and whenever the runtime opens its own menus.
 - Doors open only when the room is empty. Rooms get harder (6 → 14 Friends, elites from room 5, two families mixed
   from room 7).
 - **After room 5**, choose 1 of 3 power-ups (the same three for everyone that day). The clock stops while you choose.
-- **Room 10 is the boss**: a real Friend at 6× size with four attacks, faster below half health. The clock stops
+- **Room 10 is the boss**: a real Friend at 6× size with four attacks, faster below 60% health. The clock stops
   when it falls.
 - **No healing.** Every hit adds **+5 s**. You have **6 guard** (7 for Colossus Friends). The last hit ends the run.
 - **Continue, once per attempt.** When your last guard breaks, the clock stops and you get 6 seconds to pay
   **5 RF (100% burned)** for **+2 guard**. The fatal hit still counts (+5 s). Free in Practice.
 - **Score = clear time + 5 s × hits.** Lowest wins.
+- **Difficulty raised after playtesting.** Compared with the first tuning, regular enemies have +20% HP, elites
+  and the boss +25% HP (boss 320 → 400), enemies move 10% faster, fire 15% more often (cooldowns ×0.85) and their
+  shots fly 10% faster; the boss enrages at 60% HP instead of 50%. Guard, hit penalty, continue and power-ups are
+  unchanged.
 - Your Friend's family perk applies (piercing, twin shots, familiar, split shots, wobble, flight, heavy shots,
   bursts, phase skin). The leaderboard shows the family.
 - **Generation is prestige only:** a badge, the share line and a free Legendary halo for Gen 1–2. It never changes the run, so ranked play stays fair.
@@ -69,6 +73,12 @@ pause menu and whenever the runtime opens its own menus.
 | Halos (cosmetic) | Ember 20 · Frost 20 · Venom 40 · Gold 80 RF, one-time, **100% burned**, session-only; Legendary: free, Gen 1–2 only |
 | Practice | Free, same crypt, never ranked; its continue is free too |
 | Starting balance | 100 RF, simulated, per session |
+
+**Protocol 50/50 rule.** The Rare Friends protocol splits activation, hardwire, promote and upgrade payments 50%
+burned / 50% RF rewards into Friends' NFT wallets. Daily Crypt entries are a prize-pool game, so 80% funds the
+top-3 payouts and 20% burns; continues and halos burn 100%, above the protocol's 50%. ECONOMY.md documents a
+protocol-aligned variant (continues and halos 50/50, entries unchanged): 2,825 RF burned plus 825 RF of rewards a
+day per 1,000 attempts, versus 3,650 RF burned today.
 
 A dead or forfeited ranked attempt keeps its entry in the pool. Rival entries and times are generated from the
 day's seed and labelled **SIMULATED**, and so are their continues (15–30% of the day's entries). Everything resets
@@ -136,8 +146,10 @@ for the player's own Friend, for its prestige badge.
     one tick, add a second one, and lie about the count.
   - **Ghost lockstep: 9/9.** A ghost stepped next to a live run matches its record tick for tick. The live run
     is identical with or without the ghost (9/9), and with or without a halo (9/9).
-  - Invulnerable, the bot clears the crypt in 22 of 27 runs. The misses are its aim getting stuck behind rocks.
-  - With normal guard it dies around room 4. It doesn't dodge, and the crypt is meant to be hard.
+  - Invulnerable, the bot clears the crypt in 19 of 27 runs (22 before the difficulty raise; median clear 269 s,
+    was 229 s). The misses are its aim getting stuck behind rocks.
+  - With normal guard it dies around room 4 (average room 3.9, was 4.4; deepest room 8). It doesn't dodge, and
+    the crypt is meant to be hard.
 - `node games/daily-crypt/tests/browser.mjs`: the real SDK runtime in headless Chromium with SDK mock
   fixtures, on desktop and phone layouts, with no browser errors. The desktop pass goes through a full flow:
   - a ranked entry, standing still until the guard breaks, then **Continue · 5 RF** and dying again;

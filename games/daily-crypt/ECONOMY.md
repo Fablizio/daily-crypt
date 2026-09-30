@@ -92,6 +92,29 @@ playing back identically.
 guaranteed bit-identical across JavaScript engines, so the verifier would move to fixed-point or table-based
 math. It would also pin the engine version per day.
 
+## The protocol's 50/50 rule and Daily Crypt
+
+The Rare Friends protocol splits activation, hardwire, promote and upgrade payments **50% burned / 50% RF
+rewards**; the rewards stream over seven days into active Friends' own NFT wallets, by weight
+([source](https://iq.wiki/en/wiki/rare-friends)). Daily Crypt relates to it like this:
+
+- **Entries are a prize-pool game**, so 80% must fund the top-3 payouts and 20% burns. A 50/50 split would leave
+  nothing for prizes, so entries keep 20/80.
+- **Continues and halos burn 100%**, above the protocol's 50%.
+
+**Protocol-aligned variant (documented option, not implemented):** entries unchanged; continues and halos split
+50% burned / 50% RF rewards into Friends' NFT wallets (for example the paying players' own Friend wallets, or the
+protocol's reward stream). With the projection's own formula and assumptions (2 RF entry burn per attempt, 25% of
+attempts buy a 5 RF continue, 1 halo per 100 attempts at ~40 RF), per 1,000 ranked attempts a day:
+
+| | Entry burn | Continue burn | Halo burn | **Burned / day** | Rewards to Friend wallets / day | **Burned / 30 days** |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Current (100% burn) | 2,000 | 1,250 | 400 | **3,650** | 0 | **109,500** |
+| Protocol-aligned | 2,000 | 625 | 200 | **2,825** | 825 | **84,750** |
+
+The variant burns 23% less but returns 825 RF a day to Friends, in the protocol's own style. Wiring the rewards
+side needs integration beyond FriendSDK v0.1.4 (see Going live).
+
 ## Going live (later phase, with the Rare Friends team)
 
 Needs custom integration beyond FriendSDK v0.1.4, which has no leaderboard, persistence or pool APIs:
