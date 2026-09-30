@@ -96,3 +96,10 @@ html, body, #root { margin: 0; height: 100%; background: #070708; overflow: hidd
   .dc-route, .dc-board, .dc-halos > small, .dc-proj-pick small { display: none; }
   .dc-hero { padding: .3em .6em; }
 }
+/* Generation badge: prestige only */
+.dc-gen { display: inline-block; align-self: flex-start; padding: .05em .45em; background: #1a1400; color: #fff1a8; border: 1px solid #c9a227; font-size: .75em; font-weight: bold; letter-spacing: .08em; white-space: nowrap; }
+.dc-gen-line { margin: .2em 0; font-size: .9em; color: #bdbdbd; } .dc-gen-line .dc-gen { margin-right: .4em; }
+.dc-gen-tag { display: inline-block; margin-left: .4em; padding: 0 .3em; border: 1px solid #555; color: #d8c77a; font-size: .75em; font-weight: normal; white-space: nowrap; }
+.dc-board tr.you .dc-gen-tag { border-color: #c9a227; color: #fff1a8; }
+.dc-game .dc-halos button.gated { border-color: #c9a227; }
+.dc-game .dc-halos button.gated:disabled { opacity: .55; }

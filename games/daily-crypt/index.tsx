@@ -8,14 +8,15 @@ import "@rarefriends/friendsdk/frame.css";
 import "./style.css";
 import { Game, TICK, VIEW_H, VIEW_W, HIT_PENALTY, REVIVE_GUARD, type Vec } from "./engine/game";
 import { render, formatClock, type GhostView } from "./engine/render";
-import { loadDailyRoster, type Roster } from "./engine/roster";
+import { loadDailyRoster, readGeneration, type Roster } from "./engine/roster";
 import { createRng } from "./engine/rng";
 import { Audio } from "./engine/audio";
 import { frameCanvas } from "./engine/sprites";
 import { Recorder, quantize, toInput, verify, result, stepRecorded, MAX_TICKS, type RunRecord, type RunResult } from "./engine/replay";
 import {
   ENTRY_RF, BURN_PCT, PRIZE_SPLIT, START_BALANCE_RF, REVIVE_RF, HALOS, REVIVE_TAKE_RATE, HALO_PER_ATTEMPT, HALO_AVG_RF,
-  burnOf, poolOf, payouts, projection, dayKey, daySeed, msToReset, simulatedDay, rf, type Entry, type HaloId,
+  burnOf, poolOf, payouts, projection, dayKey, daySeed, msToReset, simulatedDay, rf, haloUnlocked, generationBadge,
+  type Entry, type HaloId,
 } from "./engine/economy";
 import { FAMILY_NAMES, PERKS, RELICS, THEMES, type FamilyId, type RelicId } from "./engine/themes";
 
@@ -104,9 +105,13 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
   const [ghostOn, setGhostOn] = useState(false);
   const [copied, setCopied] = useState<"yes" | "no" | null>(null);
   const [attempts, setAttempts] = useState<number>(1000);
+  /** The player's Friend's generation: prestige only (badge, share line, Legendary halo), never read by the sim. */
+  const [generation, setGeneration] = useState<number | null>(null);
   const live = useRef({ paused, menu, phase, reducedMotion, mode, balance });
   live.current = { paused, menu, phase, reducedMotion, mode, balance };
-  const haloColor = HALOS.find(h => h.id === equipped)!.color;
+  const genBadge = generationBadge(generation);
+  const equippedHalo = HALOS.find(h => h.id === equipped)!;
+  const haloColor = (haloUnlocked(equippedHalo, generation) ? equippedHalo : HALOS[0]).color;
 
   const seed = useMemo(() => daySeed(day), [day]);
   const sim = useMemo(() => simulatedDay(day), [day]);
@@ -136,6 +141,14 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
   useEffect(() => { if (gameRef.current) gameRef.current.reducedMotion = reducedMotion; }, [reducedMotion]);
   useEffect(() => { if (gameRef.current) gameRef.current.halo = haloColor; }, [haloColor]);
   useEffect(() => { if (paused || menu) clearInput(); }, [paused, menu, clearInput]);
+
+  // The player's generation: one read, in the background. It never blocks play; a failed read means no badge.
+  useEffect(() => {
+    let cancelled = false;
+    setGeneration(null);
+    readGeneration(friendId).then(value => { if (!cancelled) setGeneration(value); });
+    return () => { cancelled = true; };
+  }, [friendId]);
 
   // Session, the player's artwork and today's cast (the same for every player).
   useEffect(() => {
@@ -374,7 +387,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
   }, [clearInput, pick, acceptRevive, declineRevive]);
 
   const shareText = outcome ? [
-    `Daily Crypt ${day}`, `Friend #${String(friendId)}`,
+    `Daily Crypt ${day}`, `Friend #${String(friendId)}${generation ? ` (Gen ${generation})` : ""}`,
     outcome.result.status === "won" ? `${shortClock(outcome.result.time)} (${outcome.result.hits} hit${outcome.result.hits === 1 ? "" : "s"})` : `fell in room ${outcome.room}/10`,
     ...(outcome.result.revives ? [`${outcome.result.revives} continue`] : []),
     outcome.mode === "practice" ? "practice" : outcome.rank ? `rank #${outcome.rank}` : outcome.result.status === "won" ? "unranked" : "ranked attempt",
@@ -478,7 +491,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
         <div className="dc-col">
           <div className="dc-hero">
             <Portrait sprites={player} scale={5} halo={haloColor} label={`Your Friend number ${String(friendId)}`} />
-            <div><strong>Friend #{String(friendId)}</strong><span>{player.familyName} · Perk: <b>{PERKS[family].name}</b></span><span>{guard} guard · no healing · +{HIT_PENALTY}s per hit</span></div>
+            <div><strong>Friend #{String(friendId)}</strong>{genBadge && <span className="dc-gen" title="Generation: prestige only, never changes the run">{genBadge}</span>}<span>{player.familyName} · Perk: <b>{PERKS[family].name}</b></span><span>{guard} guard · no healing · +{HIT_PENALTY}s per hit</span></div>
           </div>
           <ol className="dc-route" aria-label="Today's crypt">
             {roster.floors.map((cast, i) => <li key={i} style={{ borderColor: THEMES[cast.family].accent }}><small>{GROUPS[i]}</small><b>{FAMILY_NAMES[cast.family]}</b></li>)}
@@ -494,11 +507,14 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
           <div className="dc-halos" role="group" aria-label="Halo shop: cosmetic outline colours, simulated RF, 100% burned">
             <small>Halo shop <span className="dc-sim">SIMULATED</span> cosmetic only · 100% burned</small>
             <div>{HALOS.map(h => {
-              const has = owned.has(h.id), on = equipped === h.id;
-              return <button key={h.id} type="button" disabled={paused} aria-pressed={on} className={on ? "on" : ""}
-                aria-label={`${h.name} halo, ${has ? (on ? "equipped" : "owned, equip") : `buy for ${h.price} RF`}`}
-                onClick={() => { if (has) setEquipped(h.id); else { setHaloPick(h.id); setMenu("halo"); } }}>
-                <i style={{ background: h.color }} /><span>{h.name}</span><small>{on ? "equipped" : has ? "owned" : `${h.price} RF`}</small>
+              // Gated halos (Legendary) are free and owned by generation alone; others see them locked.
+              const gated = h.maxGen !== undefined, unlocked = haloUnlocked(h, generation);
+              const has = gated ? unlocked : owned.has(h.id), on = has && equipped === h.id;
+              const gate = gated ? `Gen 1–${h.maxGen} only` : "";
+              return <button key={h.id} type="button" disabled={paused || (gated && !unlocked)} aria-pressed={on} className={`${on ? "on" : ""}${gated ? " gated" : ""}`}
+                aria-label={`${h.name} halo, ${gated ? `${gate}, ${!unlocked ? "locked" : on ? "equipped" : "free, equip"}` : has ? (on ? "equipped" : "owned, equip") : `buy for ${h.price} RF`}`}
+                onClick={() => { if (has) setEquipped(h.id); else if (!gated) { setHaloPick(h.id); setMenu("halo"); } }}>
+                <i style={{ background: h.color }} /><span>{h.name}</span><small>{on ? "equipped" : gated ? (unlocked ? `0 RF · ${gate}` : `🔒 ${gate}`) : has ? "owned" : `${h.price} RF`}</small>
               </button>;
             })}</div>
           </div>
@@ -525,8 +541,8 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
           <table className="dc-board">
             <caption>Leaderboard <span className="dc-sim">SIMULATED</span></caption>
             <tbody>{board.slice(0, 5).map((entry, i) => <tr key={`${entry.name}-${entry.time}`} className={entry.you ? "you" : ""}>
-              <td>{i + 1}</td><td>{entry.name}</td><td>{formatClock(entry.time)}</td></tr>)}
-              {myRank !== null && myRank > 5 && <tr className="you"><td>{myRank}</td><td>You</td><td>{formatClock(myBest!)}</td></tr>}
+              <td>{i + 1}</td><td>{entry.name}{(entry.you ? generation : entry.generation) ? <span className="dc-gen-tag">Gen {entry.you ? generation : entry.generation}</span> : null}</td><td>{formatClock(entry.time)}</td></tr>)}
+              {myRank !== null && myRank > 5 && <tr className="you"><td>{myRank}</td><td>You{generation ? <span className="dc-gen-tag">Gen {generation}</span> : null}</td><td>{formatClock(myBest!)}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -546,6 +562,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
         <p>Friend #{String(friendId)} fell in room {outcome.room}/10 after {outcome.result.hits} hits.</p>
         <p className="dc-note">{outcome.mode === "ranked" ? `Ranked attempt lost (${ENTRY_RF} RF entry stays in the pool).` : "Practice run."}</p>
       </>}
+      {genBadge && <p className="dc-gen-line"><span className="dc-gen">{genBadge}</span> Friend #{String(friendId)} · prestige only</p>}
       {outcome.result.revives > 0 && <p className="dc-note">Used {outcome.result.revives} continue{outcome.mode === "ranked" ? ` (${REVIVE_RF} RF burned, simulated)` : " (practice, free)"} · recorded in the replay</p>}
       {ghostOn && outcome.mode === "practice" && ghostRef.current && <p className="dc-note">{ghostVerdict(outcome, ghostRef.current.best)}</p>}
       <div className="dc-actions">
@@ -620,6 +637,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
         <li>Ranked entry {ENTRY_RF} RF: {BURN_PCT}% burned, {100 - BURN_PCT}% to the pool, paid {PRIZE_SPLIT.join("/")}% to the top 3. Practice is free and unranked.</li>
         <li>Continue: once per attempt, when your last guard breaks, pay {REVIVE_RF} RF (100% burned) for +{REVIVE_GUARD} guard. Free in Practice. It is recorded and replayed like your inputs.</li>
         <li>Halos: cosmetic outline colours, one-time price, 100% burned. They never change the game.</li>
+        <li>Generation is prestige only: a badge, the share line and a free Legendary halo for Gen 1–2. It never changes the run, so ranked play stays fair.</li>
         <li>Ghost: in Practice, race your best run of this session. It replays its recorded inputs next to you.</li>
         <li>Every ranked time is re-simulated from its recorded inputs before it counts.</li>
       </ul>

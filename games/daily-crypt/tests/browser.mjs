@@ -66,6 +66,8 @@ try {
     await page.getByRole("button", { name: /^Friend #7730\b/ }).click();
     const game = page.frameLocator("iframe");
     await game.getByRole("button", { name: /Practice \(free\)/ }).waitFor({ timeout: 20000 });
+    // The fixture reports the sample Friend as Gen 1: prestige badge in the lobby (read in the background).
+    await game.getByText("GEN 1 · LEGENDARY").waitFor({ timeout: 10000 });
     await page.locator(".rf-game-frame").screenshot({ path: join(outdir, `${view.name}-title.png`) });
     await page.screenshot({ path: join(outdir, `${view.name}-page.png`) });
     await game.getByRole("button", { name: /^Ranked run/ }).click();
@@ -98,8 +100,9 @@ try {
       await game.getByRole("button", { name: /^Continue · 5 RF/ }).click();
       await game.getByText("BOUND").waitFor({ timeout: 150000 });
       const share = await game.getByRole("textbox", { name: /Result text/ }).inputValue();
-      assert.match(share, /^Daily Crypt \d{4}-\d{2}-\d{2} · Friend #7730 · fell in room \d+\/10 · 1 continue · ranked attempt · https:\/\/fablizio\.github\.io\/daily-crypt\/$/);
+      assert.match(share, /^Daily Crypt \d{4}-\d{2}-\d{2} · Friend #7730 \(Gen 1\) · fell in room \d+\/10 · 1 continue · ranked attempt · https:\/\/fablizio\.github\.io\/daily-crypt\/$/);
       assert.ok(await game.getByText(/Used 1 continue/).isVisible(), "continue noted on the result");
+      assert.ok(await game.getByText("GEN 1 · LEGENDARY").isVisible(), "generation badge on the result");
       await game.getByRole("button", { name: "Copy result" }).click();
       await game.getByText(/Copied ✓|Copy blocked here/).waitFor();
       console.log("share:", share, "·", await game.getByText(/Copied ✓|Copy blocked here/).innerText());
@@ -111,6 +114,11 @@ try {
       await game.getByRole("button", { name: "Buy · 20 RF" }).click();
       assert.ok(await game.getByRole("button", { name: /Ember halo, equipped/ }).isVisible(), "halo equipped");
       assert.ok(await game.getByText(/halos 20 RF/).isVisible(), "halo burn counted");
+      // Gen 1-2 get the Legendary halo free: equipping it costs nothing and burns nothing.
+      await game.getByRole("button", { name: /Legendary halo, Gen 1–2 only, free, equip/ }).click();
+      assert.ok(await game.getByRole("button", { name: /Legendary halo, Gen 1–2 only, equipped/ }).isVisible(), "Legendary halo equipped");
+      assert.ok(await game.getByText(/halos 20 RF/).isVisible(), "Legendary halo burns nothing");
+      assert.ok(await game.getByText(/Balance 65 RF/).first().isVisible(), "Legendary halo is free");
       await game.getByRole("button", { name: "100", exact: true }).click();
       assert.ok(await game.getByText(/365 RF burned\/day/).isVisible(), "projection at 100 attempts/day");
       await shot("lobby-after");

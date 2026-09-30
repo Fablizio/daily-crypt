@@ -52,6 +52,10 @@ pause menu and whenever the runtime opens its own menus.
 - **Score = clear time + 5 s × hits.** Lowest wins.
 - Your Friend's family perk applies (piercing, twin shots, familiar, split shots, wobble, flight, heavy shots,
   bursts, phase skin). The leaderboard shows the family.
+- **Generation is prestige only:** a badge, the share line and a free Legendary halo for Gen 1–2. It never changes the run, so ranked play stays fair.
+  Your Friend's generation (1 = rarest) is read once from the Generations contract, in the background; a failed
+  read just means no badge. Tiers: Gen 1 Legendary, Gen 2 Epic, Gen 3 Rare, Gen 4 Uncommon, Gen 5 Common,
+  Gen 6+ Standard. Genesis NFTs are a separate collection that FriendSDK v0.1.4 cannot select as a player.
 
 ## Economy (simulated)
 
@@ -62,7 +66,7 @@ pause menu and whenever the runtime opens its own menus.
 | Day pool | **80%** of every entry (8 RF) |
 | Payout at 00:00 UTC | **50% / 30% / 20%** to the three fastest *verified* times |
 | Continue (revive) | **5 RF**, once per ranked attempt, **100% burned**, +2 guard |
-| Halos (cosmetic) | Ember 20 · Frost 20 · Venom 40 · Gold 80 RF, one-time, **100% burned**, session-only |
+| Halos (cosmetic) | Ember 20 · Frost 20 · Venom 40 · Gold 80 RF, one-time, **100% burned**, session-only; Legendary: free, Gen 1–2 only |
 | Practice | Free, same crypt, never ranked; its continue is free too |
 | Starting balance | 100 RF, simulated, per session |
 
@@ -82,9 +86,14 @@ does not use the SDK chance-game actions: entries are a fixed fee, not a chance 
   average. Those rates are stated assumptions, not data. At 1,000 attempts/day: 3,650 RF/day, 109,500 RF/month.
 - **Halo shop.** Four outline colours for your Friend, bought once with simulated RF, 100% burned, equipped for the
   session. Purely visual: `Game.halo` is read only by the renderer, never by the simulation, so it can't affect
-  a run or its replay (checked in `run-sim.mjs`).
+  a run or its replay (checked in `run-sim.mjs`). An extra one, **Legendary** (pale gold), is free and unlocked
+  automatically for Gen 1 and Gen 2 Friends; everyone else sees it locked ("Gen 1–2 only"). It is never sold, so
+  it adds no burn.
+- **Generation badge.** Your tier (e.g. `GEN 1 · LEGENDARY`) shows in the lobby, on the result screen and on your
+  leaderboard row. Simulated rivals get a display-only generation, drawn from the day's seed after everything
+  else so their times don't change.
 - **Copy result.** The result screen shows a ready-to-paste line in a selectable text box, e.g.
-  `Daily Crypt 2026-09-27 · Friend #25090 · 3:12.40 (2 hits) · rank #4 · https://fablizio.github.io/daily-crypt/`.
+  `Daily Crypt 2026-09-27 · Friend #25090 (Gen 6) · 3:12.40 (2 hits) · rank #4 · https://fablizio.github.io/daily-crypt/`.
   **Copy result** tries the Clipboard API, then `execCommand("copy")`, and says **Copied ✓** only if one worked.
   If the sandbox blocks both, you select the text yourself.
 - **Ghost race (Practice).** **Race ghost** replays your best run of the session (the fastest clear, or else the
@@ -110,10 +119,12 @@ the server also matches each recorded continue to a paid one (see ECONOMY.md).
 
 ## How the Friends are chosen
 
-The day's seed samples 120 token IDs in 1–100,000 and reads their families from the SDK's pinned sprite registry
+The day's seed samples 120 token IDs in 1–100,000 (a sampling range: hardwired Friends also exist above it,
+e.g. #332833 is a Gen 6) and reads their families from the SDK's pinned sprite registry
 (`familyOf`). It groups them into four casts (rooms 1–3, 4–5, 6–7, 8–10) and reads `seedOf` and the canonical
 `frames`, using Multicall3 with a fallback to batched reads. Only the public artwork registry is read. The
-collection is never scanned and no owners are looked up.
+collection is never scanned and no owners are looked up. The only other read is one `generation(tokenId)` call
+for the player's own Friend, for its prestige badge.
 
 ## Checks
 
@@ -132,7 +143,9 @@ collection is never scanned and no owners are looked up.
   - a ranked entry, standing still until the guard breaks, then **Continue · 5 RF** and dying again;
   - it checks the share line and the balance (100 → 85 RF), then **Copy result** (Copied ✓ via the
     `execCommand` fallback in headless Chromium);
-  - it buys and equips the Ember halo, sets the projection to 100/day (365 RF/day), then starts **Race ghost**.
+  - it checks the `GEN 1 · LEGENDARY` badge (the fixture reports the sample Friend as Gen 1) in the lobby, on the
+    result and as `Friend #7730 (Gen 1)` in the share line;
+  - it buys and equips the Ember halo, equips the free Legendary halo (no RF spent or burned), sets the projection to 100/day (365 RF/day), then starts **Race ghost**.
 - `node games/daily-crypt/tests/run-demo.mjs`: renders `media/demo.gif` from fixed-step frames (test sprites, bot,
   seed 4242), 12 s at 15 fps, 640 px wide, about 1.1 MB.
 - Known issue: the stock `npx friendsdk test` fixture only answers artwork reads for sample Friend #7730, so

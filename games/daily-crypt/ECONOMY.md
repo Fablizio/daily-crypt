@@ -29,6 +29,9 @@ player ─20–80 RF─► halo (one-time cosmetic) ─────────�
 - **Halos are a pure burn with no gameplay value.** Four outline colours at 20–80 RF, bought once. The renderer
   reads them and the simulation never does, so they can't be pay-to-win (tested: identical runs with and
   without a halo).
+- **Generation is prestige only:** a badge, the share line and a free Legendary halo for Gen 1–2. It never changes the run, so ranked play stays fair.
+  The Legendary halo is never sold, so it adds nothing to the burn or the projection. Genesis NFTs are a separate
+  collection that FriendSDK v0.1.4 cannot select as a player.
 
 ## Numbers
 

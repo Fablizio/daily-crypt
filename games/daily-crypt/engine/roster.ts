@@ -2,18 +2,23 @@
  * Picks the dungeon's inhabitants: real Rare Friends token IDs, with their canonical artwork read from the
  * SDK's pinned sprite registry on Robinhood mainnet.
  *
- * Only the public artwork registry is read (familyOf / seedOf / frames). The Generations collection is never
- * scanned, no owners are looked up and no wallet is involved. Ownership of the *player's* Friend is verified
+ * Only the public artwork registry is read (familyOf / seedOf / frames), plus one `generation` read of the
+ * player's own Friend for its prestige badge. The Generations collection is never scanned, no owners are looked
+ * up and no wallet is involved. Ownership of the *player's* Friend is verified
  * by the SDK runtime before this component mounts.
  */
 import { createPublicClient, http, type Address } from "viem";
 import {
   FAMILIES_REGISTRY_ABI, GENERATION_SPRITE_MANIFEST as M, decodeGenerationSprites, type GenerationSprites,
 } from "@rarefriends/friendsdk/sprites";
+import { GENERATION_ELIGIBILITY_ABI } from "@rarefriends/friendsdk/identity";
 import type { Rng } from "./rng";
 import type { FamilyId } from "./themes";
 
-/** Hardwired Generations Friends live in this ID range (higher IDs are Generation 0). */
+/**
+ * The daily cast is sampled from IDs 1-100,000. This is a sampling range, not the hardwired range: hardwired
+ * Friends also exist above it (e.g. #332833 is a Gen 6).
+ */
 export const MAX_FRIEND_ID = 100_000;
 const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as Address;
 const SAMPLE = 120;
@@ -126,4 +131,20 @@ export async function loadRoster(rng: Rng, playerId: bigint | null, playerFamily
     return { family, boss, regulars: cast.slice(0, -1) };
   });
   return { floors, sampled: sample.length };
+}
+
+/**
+ * The player's own Friend's generation (1 = rarest), read once from the Generations contract. Prestige only:
+ * it feeds the badge, the share line and the Legendary halo, never the simulation. Any failure or odd value
+ * returns null (no badge), and play is never blocked by it.
+ */
+export async function readGeneration(tokenId: bigint, timeoutMs = 8000): Promise<number | null> {
+  try {
+    const read = rpc().readContract({ address: M.generations, abi: GENERATION_ELIGIBILITY_ABI, functionName: "generation", args: [tokenId] });
+    const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), timeoutMs));
+    const value = await Promise.race([read, timeout]);
+    if (value === null) return null;
+    const generation = Number(value);
+    return Number.isInteger(generation) && generation >= 1 && generation <= 255 ? generation : null;
+  } catch { return null; }
 }
