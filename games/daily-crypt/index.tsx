@@ -8,6 +8,7 @@ import "@rarefriends/friendsdk/frame.css";
 import "./style.css";
 import { Game, TICK, VIEW_H, VIEW_W, HIT_PENALTY, REVIVE_GUARD, type Vec } from "./engine/game";
 import { render, formatClock, type GhostView } from "./engine/render";
+import { DAILY_ROOMS } from "./engine/dungeon";
 import { loadDailyRoster, readGeneration, type Roster } from "./engine/roster";
 import { createRng } from "./engine/rng";
 import { Audio } from "./engine/audio";
@@ -84,6 +85,8 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
   const [now, setNow] = useState(() => Date.now());
   const [menu, setMenu] = useState<"pause" | "settings" | "rules" | "confirm" | "halo" | null>(null);
   const [muted, setMuted] = useState(false);
+  /** Background music, separate from sound effects; silent whenever sound is muted. */
+  const [musicOn, setMusicOn] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [touch, setTouch] = useState(false);
   const [choice, setChoice] = useState<readonly RelicId[] | null>(null);
@@ -138,6 +141,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
     return () => { motion.removeEventListener("change", update); coarse.removeEventListener("change", update); clearInterval(clock); audioRef.current?.dispose(); audioRef.current = null; };
   }, []);
   useEffect(() => { audioRef.current?.setMuted(muted); }, [muted]);
+  useEffect(() => { audioRef.current?.setMusic(musicOn); }, [musicOn]);
   useEffect(() => { if (gameRef.current) gameRef.current.reducedMotion = reducedMotion; }, [reducedMotion]);
   useEffect(() => { if (gameRef.current) gameRef.current.halo = haloColor; }, [haloColor]);
   useEffect(() => { if (paused || menu) clearInput(); }, [paused, menu, clearInput]);
@@ -255,7 +259,10 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
     const game = gameRef.current;
     if (!game?.reviveOffer || live.current.phase !== "playing") return;
     game.declineRevive();
-    for (const event of game.drainEvents()) if (event.type === "sfx") audioRef.current?.play(event.sfx);
+    for (const event of game.drainEvents()) {
+      if (event.type === "sfx") audioRef.current?.play(event.sfx);
+      else if (event.type === "dead") audioRef.current?.jingle("lose");
+    }
     setRevive(null);
     finishRef.current(game);
   }, []);
@@ -324,6 +331,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
             }
             for (const event of game.drainEvents()) {
               if (event.type === "sfx") audioRef.current?.play(event.sfx);
+              else if ((event.type === "won" || event.type === "dead") && state.phase === "playing") audioRef.current?.jingle(event.type === "won" ? "win" : "lose");
               else if (event.type === "boss" && state.phase === "playing") setToast({ text: `BOSS · Friend #${event.enemy.sprites.tokenId}`, key: t });
               else if (event.type === "hit" && state.phase === "playing") setToast({ text: `Hit! +${HIT_PENALTY}s · ${game.guard - event.hits} guard left`, key: t });
               else if (event.type === "room" && state.phase === "playing" && event.index > 0) {
@@ -357,6 +365,18 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
           ctx.fillStyle = "#ccff00"; ctx.font = "bold 13px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.fillText("● REPLAY", VIEW_W / 2, 75);
         }
       } else { ctx.fillStyle = "#070708"; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+      // Music (presentation only, wall-clock time): it reads which room is on screen and never writes to the sim.
+      // Rooms 1-9 play the cast's family theme (it changes at rooms 4, 6 and 8), room 10 the boss variant, the
+      // lobby its own theme. Silent while paused, hidden, in the pause menu, during the continue offer and on the
+      // result screen (where the jingle plays).
+      const audio = audioRef.current;
+      if (audio) {
+        const awake = !state.paused && !document.hidden;
+        const onScreen = game && (state.phase === "playing" || state.phase === "replay") && game.status === "playing";
+        if (onScreen) audio.theme(game.cast.family, game.roomIndex === DAILY_ROOMS - 1, awake && !state.menu && !game.reviveOffer);
+        else if (state.phase === "lobby") audio.theme("lobby", false, awake);
+        else audio.theme(null, false, false);
+      }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
@@ -380,7 +400,7 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
     };
     const up = (event: KeyboardEvent) => keys.current.delete(event.key.toLowerCase());
     const blur = () => { clearInput(); if (live.current.phase === "playing" && !live.current.menu) setMenu("pause"); };
-    const visibility = () => { if (document.hidden) blur(); };
+    const visibility = () => { audioRef.current?.setHidden(document.hidden); if (document.hidden) blur(); };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up);
     window.addEventListener("blur", blur); document.addEventListener("visibilitychange", visibility);
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); document.removeEventListener("visibilitychange", visibility); };
@@ -419,7 +439,12 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
   const guard = family === 6 ? 7 : 6;
   const lastSpot = board.length >= 3 ? board[2].time : null;
 
-  return <section className="dc-game" aria-label="Daily Crypt, a daily time-attack dungeon">
+  // Audio (and so music) starts only after a user gesture; later gestures resume a suspended context.
+  const wakeAudio = () => { const audio = audioRef.current; if (!audio) return; if (audio.music) audio.wake(); else void audio.unlock(); };
+  const musicToggle = (label: string) => <label><input type="checkbox" checked={musicOn && !muted} disabled={paused || muted}
+    onChange={e => setMusicOn(e.target.checked)} /> {label}{muted ? " (off while muted)" : ""}</label>;
+
+  return <section className="dc-game" aria-label="Daily Crypt, a daily time-attack dungeon" onPointerDownCapture={wakeAudio} onKeyDownCapture={wakeAudio}>
     <canvas ref={canvasRef} width={VIEW_W} height={VIEW_H} className="dc-canvas" tabIndex={active ? 0 : -1}
       aria-label="Crypt room. WASD to move, arrow keys or mouse to shoot. On touch, left thumb moves, right thumb shoots. P pauses."
       onPointerDown={event => {
@@ -615,7 +640,8 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
     })()}
     {menu === "pause" && <GameMenu title="Paused" onClose={() => setMenu(null)}>
       <p>The clock is stopped. Room {(game?.roomIndex ?? 0) + 1}/10 · {game ? formatClock(game.finalTime) : ""}</p>
-      <label><input type="checkbox" checked={muted} disabled={paused} onChange={e => setMuted(e.target.checked)} /> Mute sound</label>
+      <div className="dc-sound"><label><input type="checkbox" checked={muted} disabled={paused} onChange={e => setMuted(e.target.checked)} /> Mute sound</label>
+        {musicToggle("Music")}</div>
       <label><input type="checkbox" checked={reducedMotion} disabled={paused} onChange={e => setReducedMotion(e.target.checked)} /> Reduce motion</label>
       <div className="dc-menu-actions">
         <button type="button" className="rf-frame-primary" disabled={paused} onClick={() => setMenu(null)}>Resume</button>
@@ -624,7 +650,8 @@ export default function DailyCrypt({ friendId, client, paused }: GameComponentPr
       {mode === "ranked" && <p className="dc-small">Forfeiting a ranked run loses the attempt.</p>}
     </GameMenu>}
     {menu === "settings" && <GameMenu title="Settings" onClose={() => setMenu(null)}>
-      <label><input type="checkbox" checked={muted} disabled={paused} onChange={e => setMuted(e.target.checked)} /> Mute sound</label>
+      <div className="dc-sound"><label><input type="checkbox" checked={muted} disabled={paused} onChange={e => setMuted(e.target.checked)} /> Mute sound</label>
+        {musicToggle("Music")}</div>
       <label><input type="checkbox" checked={reducedMotion} disabled={paused} onChange={e => setReducedMotion(e.target.checked)} /> Reduce motion (no shake, fades or bobbing; still sprite frames)</label>
       <button type="button" className="rf-frame-primary" disabled={paused} onClick={() => setMenu(null)}>Back</button>
     </GameMenu>}

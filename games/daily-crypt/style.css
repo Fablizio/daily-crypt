@@ -103,3 +103,5 @@ html, body, #root { margin: 0; height: 100%; background: #070708; overflow: hidd
 .dc-board tr.you .dc-gen-tag { border-color: #c9a227; color: #fff1a8; }
 .dc-game .dc-halos button.gated { border-color: #c9a227; }
 .dc-game .dc-halos button.gated:disabled { opacity: .55; }
+/* Sound row in Settings and Pause: Mute and Music side by side, so the menus keep their height on phones. */
+.dc-sound { display: flex; flex-wrap: wrap; gap: .3em 1.4em; }

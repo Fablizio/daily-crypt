@@ -33,8 +33,15 @@ check. No transaction or signature is requested. Static build: `npx friendsdk bu
 | Continue (when offered) | C or Enter to pay, N to end the run | Tap the buttons |
 | Pause / mute | P or Esc / M, or the on-screen buttons | On-screen buttons |
 
-Settings and pause include **Mute** and **Reduce motion**. The run and its clock pause on blur, hidden tabs, the
+Settings and pause include **Mute**, a separate **Music** toggle and **Reduce motion**. The run and its clock pause on blur, hidden tabs, the
 pause menu and whenever the runtime opens its own menus.
+
+**Chiptune soundtrack:** lobby theme, family themes per cast, boss variant, jingles; separate Music toggle.
+Synthesized with WebAudio (no files): a calm, slightly ominous lobby theme; the cast family's theme in rooms 1–3,
+4–5, 6–7 and 8–9; a faster boss variant in room 10; a victory jingle on a clear and a sting on death. It is
+silent while paused, hidden, in the pause menu and while the continue offer is open, off when sound is muted, and
+starts only after a user gesture. Music runs from the UI layer on wall-clock time and never reads the sim RNG or
+touches a tick: `engine/game.ts` did not change and `run-sim.mjs` results are identical.
 
 ## Rules
 
@@ -180,6 +187,6 @@ for the player's own Friend, for its prestige badge.
 
 ## Credits
 
-Code, rooms and sound effects by Fablizio (AI-assisted). Scenery is drawn in code. Character art: canonical Rare
+Code, rooms, sound effects and music by Fablizio (AI-assisted). Scenery is drawn in code. Character art: canonical Rare
 Friends Generations sprites via the FriendSDK sprite reader. Reward cues come from the FriendSDK sound kit (see
 `NOTICE.md`). The engine is shared with the builder's Character Spotlight entry, *The Binding of RareFriend*.

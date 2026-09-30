@@ -70,6 +70,14 @@ try {
     await game.getByText("GEN 1 · LEGENDARY").waitFor({ timeout: 10000 });
     await page.locator(".rf-game-frame").screenshot({ path: join(outdir, `${view.name}-title.png`) });
     await page.screenshot({ path: join(outdir, `${view.name}-page.png`) });
+    // Music: a separate toggle in Settings (the click is also the gesture that starts audio). Off, then on again.
+    await game.getByRole("button", { name: "Settings" }).click();
+    const music = game.getByRole("checkbox", { name: /^Music/ });
+    assert.ok(await music.isChecked(), "music on by default");
+    await music.uncheck(); assert.equal(await music.isChecked(), false, "music toggles off");
+    await music.check(); assert.ok(await music.isChecked(), "music toggles on");
+    await page.waitForTimeout(300);
+    await game.getByRole("button", { name: "Back" }).click();
     await game.getByRole("button", { name: /^Ranked run/ }).click();
     await page.waitForTimeout(200);
     await page.locator(".rf-game-frame").screenshot({ path: join(outdir, `${view.name}-confirm.png`) });
